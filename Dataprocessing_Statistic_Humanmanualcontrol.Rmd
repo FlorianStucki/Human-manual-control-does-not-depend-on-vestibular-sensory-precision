@@ -1,0 +1,224 @@
+---
+title: "Dataprocessing_Statistic"
+output: html_document
+date: "2024-03-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) 
+knitr::opts_knit$set(root.dir = "Workingdirectory")
+library("tidyverse")
+library("dplyr")
+library("ggplot2")
+library("writexl")
+library("readxl")
+library("psych")
+```
+##Function for Threshold
+#Use the same for pitch and roll
+```{r}
+# Define a function to remove rows until the first occurrence of 0
+Threshold_pitch <- function(file_path) {
+  # Read the data from the specified TSV file
+  sub_1TH <- read_tsv(file_path)
+  
+  # Split the data frame by the 'axis' column
+  sub_1TH_split <- split.data.frame(sub_1TH, sub_1TH$axis)
+  
+  # Extract the 'pitch' data frame
+  sub_1TH_pitch <- data.frame(sub_1TH_split$pitch)
+  
+  # Find the index of the first occurrence of 0 in the 'resp' column
+  first_zero_index <- which(sub_1TH_pitch$resp == 0)[1]
+  
+  # Remove rows until the first zero
+  sub_1TH_pitch <- sub_1TH_pitch[first_zero_index:nrow(sub_1TH_pitch), ]
+  
+  # Calculate the threshold as the mean of the remaining 'intensity' values
+  Threshold <- mean(sub_1TH_pitch$intensity)
+  assign("Threshold_pitch_sub", Threshold, envir = .GlobalEnv)
+  
+  # Return the modified data frame and the calculated threshold
+  return(data_frame = sub_1TH_pitch)
+}
+
+.GlobalEnv$Threshold_pitch <- Threshold_pitch
+```
+## Data processing
+For every participant separately!
+
+#Position variabilty metrics (PVM) for 1 Participant
+
+Hardwires
+```{r}
+Pitch1_csv = "Dataset1"
+Pitch2_csv = "Dataset2"
+Pitch3_csv = "Dataset3"
+
+Roll1_csv = "Dataset4"
+Roll2_csv = "Dataset5"
+Roll3_csv = "Dataset6"
+
+Threshold_sub = "Dataset_Threshold"
+```
+
+Load data
+```{r}
+#import pitch
+Import_pitch_1 <- read.csv2(Pitch1_csv,header=FALSE, sep=",")
+pitch_1 <- data.frame(Import_pitch_1$V6)
+colnames(pitch_1)[1] <- "pitch1"
+
+Import_pitch_2 <- read.csv2(Pitch2_csv,header=FALSE, sep=",")
+pitch_2 <- data.frame(Import_pitch_2$V6) 
+colnames(pitch_2)[1] <- "pitch1"
+
+Import_pitch_3 <- read.csv2(Pitch3_csv,header=FALSE, sep=",")
+pitch_3 <- data.frame(Import_pitch_3$V6)
+colnames(pitch_3)[1] <- "pitch1"
+
+pitch <- bind_rows(pitch_1,pitch_2,pitch_3)   #Bind Data in 1 column
+pitch <- (pitch[-c(1:2),]) |> as.numeric() |>  #delete empty rows
+  abs() #convert all numbers to positive numbers
+pitch_degree <- as.matrix(pitch*(180/pi)) #convert to degree
+
+
+
+#import roll
+
+Import_roll_1 <- read.csv2(Roll1_csv, header=FALSE, sep=",")
+roll_1 <- data.frame(Import_roll_1$V7)
+colnames(roll_1)[1] <- "roll1"
+
+Import_roll_2 <- read.csv2(Roll2_csv, header=FALSE, sep=",")
+roll_2 <- data.frame(Import_roll_2$V7)
+colnames(roll_2)[1] <- "roll1"
+
+Import_roll_3 <- read.csv2(Roll3_csv, header=FALSE, sep=",")
+roll_3 <- data.frame(Import_roll_3$V7)
+colnames(roll_3)[1] <- "roll1"
+
+
+roll <- bind_rows(roll_3,roll_2, roll_1)
+roll<- (roll[-c(1:2),]) |> as.numeric() |>
+  abs()
+
+roll_degree <- as.matrix(roll*(180/pi))
+
+```
+#Threshold for 1 participant
+```{r}
+Threshold_pitch(Threshold_sub)
+Threshold_roll(Threshold_sub)
+
+Threshold_pitch_sub1 = Threshold_pitch_sub
+Threshold_roll_sub1 = Threshold_roll_sub
+
+```
+Mean or SD
+```{r}
+#Mean Pitch
+
+Sub_1_PVM_pitch <- mean(pitch_degree,na.rm = TRUE)
+
+#Mean Roll
+
+Sub_1_PVM_roll <-mean(roll_degree, na.rm = TRUE)
+
+
+
+```
+
+Write the Data to csv
+
+```{r}
+#Bind the data
+
+sub1me <- data_frame(Sub_1_PVM_pitch, Sub_1_PVM_roll, Threshold_roll_sub1, Threshold_pitch_sub1)
+
+#rename columne 
+Names <- data_frame(
+  "PVM_Pitch","PVM_Roll","Threshold_Pitch", "Threshold_roll"
+)
+
+sub1me <- rbind(names(Names), sub1me)
+
+write.csv(sub1me, "sub1.csv")
+```
+
+##Bind the Data of every participant
+```{r}
+colnames(sub1me) <- colnames(sub2me)<- colnames(sub3me) <- colnames(sub4me) <- 
+  colnames(sub5me) <- colnames(sub6me) <- colnames(sub7me)<- 
+  colnames(sub8me)  <- colnames(sub9me) <- colnames(sub10me) <- 
+  colnames(sub11me)<- colnames(sub12me) <- c("PVM.Pitch", "PVM.Roll", "Threshold.Roll", "Threshold.pitch")
+
+rows <- lapply(list(sub1me, sub2me, sub3me,sub4me,sub5me,sub6me,sub7me,sub8me,sub9me,sub10me,sub11me,sub12me), function(df) df[2, ])
+combined_matrix <- do.call(rbind, rows)
+
+write.xlsx(combined_matrix, "DatenFA.xlsx")
+```
+
+##Statistics
+
+Data import as log and without log
+
+```{r}
+DatenFA <- read_excel("DatenFA.xlsx")
+DatenFA$PVM.Pitch <- as.numeric(DatenFA$PVM.Pitch)
+DatenFA$PVM.Roll <- as.numeric(DatenFA$PVM.Roll)
+DatenFA$Threshold.Roll <- as.numeric(DatenFA$Threshold.Roll)
+DatenFA$Threshold.pitch <- as.numeric(DatenFA$Threshold.pitch)
+
+DatenFA_log <- log(DatenFA)
+
+```
+
+
+Comparison Threshold and the PVM of "pitch" 
+
+```{r}
+linearRegression_pitch = lm(Threshold.pitch~PVM.Pitch, data =  DatenFA)
+summary(linearRegression_pitch)
+
+ggplot(linearRegression_pitch, aes(Threshold.pitch,PVM.Pitch)) + geom_point() + 
+  geom_smooth(method = "lm")
+```
+
+Comparison Threshold and the PVM of "pitch" log
+
+```{r}
+linearRegression_pitchlog = lm(Threshold.pitch~PVM.Pitch, data =  DatenFA_log)
+summary(linearRegression_pitchlog)
+ggplot(linearRegression_pitchlog, aes(Threshold.pitch,PVM.Pitch)) + geom_point() + 
+  geom_smooth(method = "lm")
+
+```
+
+Comparison Threshold and the PVM of "roll"
+
+```{r}
+linearRegression_roll = lm(Threshold.Roll~PVM.Roll, data = DatenFA)
+summary(linearRegression_roll)
+ggplot(linearRegression_roll, aes(Threshold.Roll,PVM.Roll)) + geom_point() + 
+  geom_smooth(method = "lm")
+```
+
+Comparison Threshold and the PVM of "roll" log
+
+```{r}
+linearRegression_rolllog = lm(Threshold.Roll~PVM.Roll, data = DatenFA_log)
+summary(linearRegression_rolllog)
+ggplot(linearRegression_rolllog, aes(Threshold.Roll,PVM.Roll)) + geom_point() + 
+  geom_smooth(method = "lm")
+```
+
+Comparison Threshold "pitch" and "roll"
+
+```{r}
+thp = DatenFA$Threshold.pitch
+thr = DatenFA$Threshold.Roll
+t.test(thp,thr, paired = TRUE)
+anova(DatenFA)
+```
+
